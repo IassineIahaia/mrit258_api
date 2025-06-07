@@ -6,9 +6,11 @@ const fileUpload = require('express-fileupload');
 
 const server = express();
 
+server.use(express.json());
 server.use(cors());
 server.use(express.json());
 server.use(fileUpload());
+server.use(express.urlencoded({ extended: true }));
 
 server.use(express.static('public'));
 
