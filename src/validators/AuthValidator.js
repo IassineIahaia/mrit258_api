@@ -7,23 +7,31 @@ module.exports = {
       isString: true,
       notEmpty: true,
       trim: true,
-      errorMessage: 'O Nome é obrigatorio e precisa ter mais de 3 caracteres',
       isLength: {
         options: { min: 3 }
-      }
+      },
+      errorMessage: 'O Nome é obrigatório e precisa ter mais de 3 caracteres'
     },
     email: {
       isEmail: true,
       notEmpty: true,
       normalizeEmail: true,
-      errorMessage: 'Email invalido'
+      errorMessage: 'Email inválido'
     },
     password: {
       notEmpty: true,
-      errorMessage: 'A senha é obrigatoria',
       isLength: {
         options: { min: 4 }
+      },
+      errorMessage: 'A senha é obrigatória e precisa ter no mínimo 4 caracteres'
+    },
+    state: {
+      notEmpty: {
+        errorMessage: 'O Estado é obrigatório'
+      },
+      isMongoId: {
+        errorMessage: 'ID do Estado inválido'
       }
     }
   })
-}
+};
