@@ -33,5 +33,17 @@ module.exports = {
         errorMessage: 'ID do Estado inválido'
       }
     }
+  }),
+  signin: checkSchema({
+    email: {
+      isEmail: true,
+      notEmpty: true,
+      normalizeEmail: true,
+      errorMessage: 'Email inválido'
+    },
+    password: {
+      notEmpty: true,
+      errorMessage: 'A senha é obrigatória'
+    }
   })
 };
