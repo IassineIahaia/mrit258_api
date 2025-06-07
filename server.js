@@ -12,9 +12,9 @@ server.use(fileUpload());
 
 server.use(express.static('public'));
 
-server.get('/ping', (req, res) => {
-    res.json({pong: true});
-});
+const apiRouter = require('./src/routers');
+
+server.use('/', apiRouter);
 
 server.listen(process.env.PORT, () => {
     console.log(`Server running on port ${process.env.PORT}`);
