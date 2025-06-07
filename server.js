@@ -1,13 +1,22 @@
+require('dotenv').config();
 const express = require('express');
-const app = express();
-const port = 5000;
+require('./config/database');
+const cors = require('cors');
+const fileUpload = require('express-fileupload');
 
-app.get('/', (req, res) => {
-    res.send('Hello World!');
+const server = express();
+
+server.use(cors());
+server.use(express.json());
+server.use(fileUpload());
+
+server.use(express.static('public'));
+
+server.get('/ping', (req, res) => {
+    res.json({pong: true});
 });
 
-app.listen(port, () => {
-    console.log(`Example app listening on port ${port}`);
+server.listen(process.env.PORT, () => {
+    console.log(`Server running on port ${process.env.PORT}`);
 });
 
-module.exports = app
