@@ -16,7 +16,7 @@ router.get('/states', UserController.getStates);
 router.post('/user/signup', AuthValidator.signup, AuthController.signup);
 router.post('/user/signin', AuthValidator.signin, AuthController.signin);
 
-router.get('/user/me', UserController.info);
+router.get('/user/me', Auth.private, UserController.info);
 router.post('/user/me', UserController.editAction);
 
 router.get('/categories', AdsController.getCategories);
