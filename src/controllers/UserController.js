@@ -1,3 +1,4 @@
+const { validationResult, matchedData } = require('express-validator');
 const State = require('../models/State');
 const User = require('../models/User');
 const Category = require('../models/Category');
@@ -60,7 +61,7 @@ module.exports = {
                     name: cat.name,
                     slug: cat.slug
                 })),
-                // Outros campos do usuário que possam existir
+
                 phone: user.phone,
                 dateCreated: user.dateCreated,
                 lastLogin: user.lastLogin
@@ -74,7 +75,37 @@ module.exports = {
         }
     },
 
-    editAction: async (req, res) => {
-        // Implementar edição do usuário
+editAction: async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.mapped() });
+        }
+
+        const data = matchedData(req);
+
+        const user = await User.findOne({ token: data.token });
+        if (!user) {
+            return res.status(404).json({ error: 'Usuário não encontrado' });
+        }
+
+        // Campos que não devem ser atualizados diretamente
+        const protectedFields = ['token', '_id', 'createdAt', 'updatedAt'];
+
+        // Atualiza dinamicamente todos os campos válidos
+        Object.keys(data).forEach(key => {
+            if (!protectedFields.includes(key)) {
+                user[key] = data[key];
+            }
+        });
+
+        await user.save();
+
+        return res.json({ success: true, updatedFields: data });
+    } catch (err) {
+        console.error('Erro ao atualizar usuário:', err);
+        return res.status(500).json({ error: 'Erro interno do servidor' });
     }
+}
+
 }
