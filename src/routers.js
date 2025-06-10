@@ -45,6 +45,7 @@ router.post(
 
 // Listagem e detalhes de anúncios
 router.get('/ad/list', AdsController.getList);
+
 router.get('/ad/item', AdsController.getItem);
 
 // Edição de anúncio (com id dinâmico)

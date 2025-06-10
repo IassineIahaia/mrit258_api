@@ -116,9 +116,42 @@ module.exports = {
         }
     },
 
-    getList: async (req, res) => {
-        // Implementar a lógica aqui
-    },
+getList: async (req, res) => {
+    let { sort, order, page, limit } = req.query;
+
+    // Converte e define valores padrão
+    sort = sort || 'dateCreated';
+    order = order || 'desc';
+    limit = parseInt(limit) || 10;
+    page = parseInt(page) || 1;
+
+    // Validações
+    const validSortFields = ['dateCreated', 'price', 'title'];
+    const validOrders = ['asc', 'desc', '1', '-1'];
+
+    if (!validSortFields.includes(sort)) sort = 'dateCreated';
+    if (!validOrders.includes(order)) order = 'desc';
+
+    try {
+        const total = await Ad.countDocuments();
+        const ads = await Ad.find()
+            .sort({ [sort]: order })
+            .limit(limit)
+            .skip((page - 1) * limit);
+
+        res.json({
+            ads,
+            pagination: {
+                total,
+                page,
+                limit,
+                pages: Math.ceil(total / limit)
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error', details: err.message });
+    }
+},
 
     getItem: async (req, res) => {
         // Implementar a lógica aqui
