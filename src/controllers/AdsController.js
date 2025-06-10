@@ -117,39 +117,173 @@ module.exports = {
     },
 
 getList: async (req, res) => {
-    let { sort, order, page, limit } = req.query;
-
-    // Converte e define valores padrão
-    sort = sort || 'dateCreated';
-    order = order || 'desc';
-    limit = parseInt(limit) || 10;
-    page = parseInt(page) || 1;
-
-    // Validações
-    const validSortFields = ['dateCreated', 'price', 'title'];
-    const validOrders = ['asc', 'desc', '1', '-1'];
-
-    if (!validSortFields.includes(sort)) sort = 'dateCreated';
-    if (!validOrders.includes(order)) order = 'desc';
-
     try {
-        const total = await Ad.countDocuments();
-        const ads = await Ad.find()
-            .sort({ [sort]: order })
+        let { 
+            sort = 'desc', 
+            offset = 0, 
+            limit = 8, 
+            q, 
+            cat, 
+            state, 
+            priceFrom, 
+            priceTo 
+        } = req.query;
+
+        console.log('=== DEBUG GETLIST ===');
+        console.log('Query params:', { sort, offset, limit, q, cat, state, priceFrom, priceTo });
+
+        // Conversões seguras
+        offset = parseInt(offset) || 0;
+        limit = parseInt(limit) || 8;
+        limit = Math.min(limit, 50); // Máximo 50 por página
+
+        // Construir filtros
+        let filters = {};
+
+        // Filtro por texto (título e descrição)
+        if (q && q.trim()) {
+            filters.$or = [
+                { title: { $regex: q.trim(), $options: 'i' } },
+                { description: { $regex: q.trim(), $options: 'i' } }
+            ];
+        }
+
+        // Filtro por categoria
+        if (cat && mongoose.Types.ObjectId.isValid(cat)) {
+            filters.category = cat;
+        }
+
+        // Filtro por estado
+        if (state && state.trim()) {
+            filters.state = { $regex: state.trim(), $options: 'i' };
+        }
+
+        // Filtro por faixa de preço
+        if (priceFrom || priceTo) {
+            filters.price = {};
+            if (priceFrom) {
+                const minPrice = parseFloat(priceFrom);
+                if (!isNaN(minPrice)) {
+                    filters.price.$gte = minPrice;
+                }
+            }
+            if (priceTo) {
+                const maxPrice = parseFloat(priceTo);
+                if (!isNaN(maxPrice)) {
+                    filters.price.$lte = maxPrice;
+                }
+            }
+        }
+
+        console.log('Filtros aplicados:', JSON.stringify(filters, null, 2));
+
+        // Definir ordenação
+        let sortObj = {};
+        switch (sort.toLowerCase()) {
+            case 'asc':
+                sortObj = { dateCreated: 1 };
+                break;
+            case 'desc':
+            default:
+                sortObj = { dateCreated: -1 };
+                break;
+            case 'price_asc':
+                sortObj = { price: 1 };
+                break;
+            case 'price_desc':
+                sortObj = { price: -1 };
+                break;
+        }
+
+        // Buscar anúncios com populate da categoria e usuário
+        const ads = await Ad.find(filters)
+            .populate('category', 'name slug')
+            .populate('idUser', 'name email state')
+            .sort(sortObj)
+            .skip(offset)
             .limit(limit)
-            .skip((page - 1) * limit);
+            .exec();
+
+        // Contar total de resultados para paginação
+        const total = await Ad.countDocuments(filters);
+
+        console.log(`Encontrados ${ads.length} anúncios de ${total} total`);
+
+        // Formatar os dados de retorno
+        const formattedAds = ads.map(ad => {
+            // Pegar a imagem principal (primeira imagem ou padrão)
+            let mainImage = null;
+            if (ad.images && ad.images.length > 0) {
+                const defaultImg = ad.images.find(img => img.default);
+                mainImage = defaultImg ? defaultImg.url : ad.images[0].url;
+            }
+
+            return {
+                id: ad._id,
+                title: ad.title,
+                description: ad.description,
+                price: ad.price,
+                priceNegotiable: ad.priceNegotiable,
+                priceFormatted: ad.price > 0 ? 
+                    `${ad.price.toLocaleString('pt', { minimumFractionDigits: 2 })} MZN` : 
+                    'Gratuito',
+                mainImage,
+                category: ad.category ? {
+                    id: ad.category._id,
+                    name: ad.category.name,
+                    slug: ad.category.slug
+                } : null,
+                user: ad.idUser ? {
+                    id: ad.idUser._id,
+                    name: ad.idUser.name,
+                    state: ad.idUser.state
+                } : null,
+                state: ad.state,
+                dateCreated: ad.dateCreated,
+                dateFormatted: new Date(ad.dateCreated).toLocaleDateString('pt')
+            };
+        });
+
+        // Calcular informações de paginação
+        const totalPages = Math.ceil(total / limit);
+        const currentPage = Math.floor(offset / limit) + 1;
+        const hasNext = offset + limit < total;
+        const hasPrev = offset > 0;
 
         res.json({
-            ads,
+            success: true,
+            ads: formattedAds,
             pagination: {
                 total,
-                page,
+                totalPages,
+                currentPage,
                 limit,
-                pages: Math.ceil(total / limit)
+                offset,
+                hasNext,
+                hasPrev,
+                nextOffset: hasNext ? offset + limit : null,
+                prevOffset: hasPrev ? Math.max(0, offset - limit) : null
+            },
+            filters: {
+                sort,
+                q: q || null,
+                cat: cat || null,
+                state: state || null,
+                priceFrom: priceFrom || null,
+                priceTo: priceTo || null
             }
         });
+
     } catch (err) {
-        res.status(500).json({ error: 'Server error', details: err.message });
+        console.error('Erro detalhado no getList:', {
+            message: err.message,
+            stack: err.stack,
+            name: err.name
+        });
+        res.status(500).json({ 
+            error: 'Server error', 
+            details: err.message 
+        });
     }
 },
 
