@@ -1,75 +1,43 @@
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
 
+// Diretório onde as imagens serão salvas
+const uploadDir = './public/media';
+
+// Extensões permitidas
+const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif'];
+
+// Configuração de armazenamento
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const dir = './public/media';
-        try {
-            fs.mkdirSync(dir, { recursive: true });
-            cb(null, dir);
-        } catch (error) {
-            console.error('Erro ao criar diretório:', error);
-            cb(error);
-        }
+        cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
-        try {
-            const uniqueName = Date.now() + '-' + Math.floor(Math.random() * 1E9) + path.extname(file.originalname);
-            cb(null, uniqueName);
-        } catch (error) {
-            console.error('Erro ao gerar nome do arquivo:', error);
-            cb(error);
-        }
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname).toLowerCase();
+        cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
     }
 });
 
-// Filtro para validar tipos de arquivo
+// Filtro de tipos de arquivo
 const fileFilter = (req, file, cb) => {
-    // Permitir apenas imagens
-    if (file.mimetype.startsWith('image/')) {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedExtensions.includes(ext)) {
         cb(null, true);
     } else {
-        cb(new Error('Apenas arquivos de imagem são permitidos!'), false);
+        cb(new Error('Tipo de arquivo não permitido. Apenas imagens são aceitas (jpg, jpeg, png, gif).'));
     }
 };
 
-const upload = multer({ 
+// Limites do upload (ex: 5MB por imagem)
+const limits = {
+    fileSize: 5 * 1024 * 1024 // 5MB
+};
+
+const upload = multer({
     storage,
     fileFilter,
-    limits: {
-        fileSize: 5 * 1024 * 1024, // 5MB por arquivo
-        files: 5 // máximo 5 arquivos
-    }
+    limits
 });
 
-// Middleware para tratar erros do multer
-const handleMulterError = (err, req, res, next) => {
-    if (err instanceof multer.MulterError) {
-        if (err.code === 'LIMIT_FILE_SIZE') {
-            return res.status(400).json({
-                error: 'Arquivo muito grande. Tamanho máximo: 5MB'
-            });
-        }
-        if (err.code === 'LIMIT_FILE_COUNT') {
-            return res.status(400).json({
-                error: 'Muitos arquivos. Máximo permitido: 5'
-            });
-        }
-        if (err.code === 'LIMIT_UNEXPECTED_FILE') {
-            return res.status(400).json({
-                error: 'Campo de arquivo inesperado'
-            });
-        }
-    }
-    
-    if (err.message === 'Apenas arquivos de imagem são permitidos!') {
-        return res.status(400).json({
-            error: err.message
-        });
-    }
-    
-    next(err);
-};
-
-module.exports = { upload, handleMulterError };
+module.exports = upload;
