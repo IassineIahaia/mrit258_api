@@ -287,9 +287,148 @@ getList: async (req, res) => {
     }
 },
 
-    getItem: async (req, res) => {
-        // Implementar a lógica aqui
-    },
+getItem: async (req, res) => {
+    try {
+        const { id } = req.params;
+        let { related_limit = 4 } = req.query;
+
+        console.log('=== DEBUG GETITEM ===');
+        console.log('ID do anúncio:', id);
+
+        // Validar se o ID é válido
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ 
+                error: 'Invalid ad ID format' 
+            });
+        }
+
+        // Buscar o anúncio específico com populate completo
+        const ad = await Ad.findById(id)
+            .populate('category', 'name slug')
+            .populate('idUser', 'name email phone state')
+            .exec();
+
+        if (!ad) {
+            return res.status(404).json({ 
+                error: 'Ad not found' 
+            });
+        }
+
+        console.log('Anúncio encontrado:', ad.title);
+
+        // Buscar anúncios relacionados baseados na categoria
+        related_limit = Math.min(parseInt(related_limit) || 4, 10); // Máximo 10 relacionados
+        
+        const relatedAds = await Ad.find({
+            category: ad.category._id,
+            _id: { $ne: ad._id }, // Excluir o próprio anúncio
+        })
+        .populate('category', 'name slug')
+        .populate('idUser', 'name state')
+        .sort({ dateCreated: -1 })
+        .limit(related_limit)
+        .exec();
+
+        console.log(`Encontrados ${relatedAds.length} anúncios relacionados`);
+
+        // Formatar o anúncio principal
+        const formattedAd = {
+            id: ad._id,
+            title: ad.title,
+            description: ad.description,
+            price: ad.price,
+            priceNegotiable: ad.priceNegotiable,
+            priceFormatted: ad.price > 0 ? 
+                `${ad.price.toLocaleString('pt', { minimumFractionDigits: 2 })} MZN` : 
+                'Gratuito',
+            category: ad.category ? {
+                id: ad.category._id,
+                name: ad.category.name,
+                slug: ad.category.slug
+            } : null,
+            user: ad.idUser ? {
+                id: ad.idUser._id,
+                name: ad.idUser.name,
+                email: ad.idUser.email,
+                phone: ad.idUser.phone,
+                state: ad.idUser.state
+            } : null,
+            state: ad.state,
+            images: ad.images || [],
+            dateCreated: ad.dateCreated,
+            dateFormatted: new Date(ad.dateCreated).toLocaleDateString('pt'),
+            views: ad.views || 0
+        };
+
+        // Formatar anúncios relacionados
+        const formattedRelated = relatedAds.map(relatedAd => {
+            // Pegar a imagem principal
+            let mainImage = null;
+            if (relatedAd.images && relatedAd.images.length > 0) {
+                const defaultImg = relatedAd.images.find(img => img.default);
+                mainImage = defaultImg ? defaultImg.url : relatedAd.images[0].url;
+            }
+
+            return {
+                id: relatedAd._id,
+                title: relatedAd.title,
+                description: relatedAd.description.length > 100 ? 
+                    relatedAd.description.substring(0, 100) + '...' : 
+                    relatedAd.description,
+                price: relatedAd.price,
+                priceNegotiable: relatedAd.priceNegotiable,
+                priceFormatted: relatedAd.price > 0 ? 
+                    `${relatedAd.price.toLocaleString('pt', { minimumFractionDigits: 2 })} MZN` : 
+                    'Gratuito',
+                mainImage,
+                category: relatedAd.category ? {
+                    id: relatedAd.category._id,
+                    name: relatedAd.category.name,
+                    slug: relatedAd.category.slug
+                } : null,
+                user: relatedAd.idUser ? {
+                    id: relatedAd.idUser._id,
+                    name: relatedAd.idUser.name,
+                    state: relatedAd.idUser.state
+                } : null,
+                state: relatedAd.state,
+                dateCreated: relatedAd.dateCreated,
+                dateFormatted: new Date(relatedAd.dateCreated).toLocaleDateString('pt')
+            };
+        });
+
+        // Opcional: Incrementar contador de visualizações
+        try {
+            await Ad.findByIdAndUpdate(id, { 
+                $inc: { views: 1 } 
+            });
+        } catch (viewError) {
+            console.log('Erro ao incrementar visualizações:', viewError.message);
+            // Não interromper a resposta por causa disso
+        }
+
+        res.json({
+            success: true,
+            ad: formattedAd,
+            related: formattedRelated,
+            meta: {
+                relatedCount: formattedRelated.length,
+                category: formattedAd.category?.name || 'Sem categoria'
+            }
+        });
+
+    } catch (err) {
+        console.error('Erro detalhado no getItem:', {
+            message: err.message,
+            stack: err.stack,
+            name: err.name
+        });
+        res.status(500).json({ 
+            error: 'Server error', 
+            details: err.message 
+        });
+    }
+},
 
     editAction: async (req, res) => {
         // Implementar a lógica aqui
